@@ -1,85 +1,94 @@
 "use client";
 
+import { useMemo } from "react";
 import { IdentifyGate } from "@/components/IdentifyGate";
-import { TankViz } from "@/components/TankViz";
-import { liters, mm, when } from "@/lib/format";
+import { productLabel, when } from "@/lib/format";
 import { useApp } from "@/lib/store";
 
 export default function GaugesPage() {
-  const ids = useApp((s) => s.visibleStationIds());
-  const stations = useApp((s) => s.stations.filter((s) => ids.includes(s.id)));
+  const currentUserId = useApp((s) => s.currentUserId);
+  const users = useApp((s) => s.users);
+  const stations = useApp((s) => s.stations);
+  const missions = useApp((s) => s.missions);
+  const drivers = useApp((s) => s.drivers);
   const tanks = useApp((s) => s.tanks);
   const gauges = useApp((s) => s.gauges);
-  const users = useApp((s) => s.users);
-  const recordGauge = useApp((s) => s.recordGauge);
-  const can = useApp((s) => s.can("gauges"));
+  const record = useApp((s) => s.recordGauge);
+  
+  const ids = useMemo(() => {
+    const u = users.find((user) => user.id === currentUserId);
+    if (!u) return [];
+    if (u.role === "proprietaire" || u.role === "adjoint") {
+      return stations.map((st) => st.id);
+    }
+    if (u.stationId) return [u.stationId];
+    if (u.role === "chauffeur") {
+      return missions.filter((m) => {
+        const d = drivers.find((x) => x.id === m.driverId);
+        return d?.truckId === u.truckId;
+      }).map((m) => m.stationId);
+    }
+    return [];
+  }, [currentUserId, users, stations, missions, drivers]);
 
-  if (!can) return <p>Accès réservé au superviseur / gérant.</p>;
+  const list = tanks.filter((t) => ids.includes(t.stationId));
 
   return (
+    <IdentifyGate place="un relevé de jauge">
     <div className="space-y-6">
       <div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Automatisation</p>
-        <h1 className="text-3xl font-black uppercase tracking-tight text-secondary">Jauges</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Ouverture (5–6 h), midi, minuit — la lecture sonde remplace la règle millimétrée.
-        </p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Relevés manuels</p>
+        <h1 className="text-3xl font-black uppercase tracking-tight text-secondary">
+          Jauges cuves
+        </h1>
       </div>
-      <IdentifyGate place="un relevé de jauge">
-        {stations.map((st) => (
-          <section key={st.id} className="space-y-4">
-            <h2 className="text-sm font-black uppercase tracking-widest text-secondary">{st.name}</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {tanks
-                .filter((t) => t.stationId === st.id)
-                .map((t) => (
-                  <div key={t.id} className="space-y-3">
-                    <TankViz tank={t} />
-                    <div className="flex gap-2">
-                      {(["ouverture", "midi", "minuit"] as const).map((slot) => (
-                        <button
-                          key={slot}
-                          onClick={() => recordGauge(st.id, t.id, slot)}
-                          className="flex-1 rounded-xl bg-blue-900 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
-                        >
-                          {slot}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {list.map((tank) => {
+          const st = stations.find((s) => s.id === tank.stationId);
+          const last = gauges
+            .filter((g) => g.tankId === tank.id)
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
+          return (
+            <div key={tank.id} className="overflow-hidden rounded-3xl border border-slate-100 bg-white p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">{st?.name}</p>
+              <h3 className="text-2xl font-black text-secondary">{tank.name}</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {productLabel[tank.product]} • {tank.lastMm} mm • {tank.levelL.toLocaleString()} L
+              </p>
+
+              {last && (
+                <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs">
+                  <p className="font-semibold text-slate-700">Dernier relevé {last.slot}</p>
+                  <p className="text-slate-500">{when(last.at)} • {last.mm} mm • {last.liters.toLocaleString()} L</p>
+                </div>
+              )}
+
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => record(tank.stationId, tank.id, "ouverture")}
+                  className="rounded-xl bg-blue-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
+                >
+                  Ouv.
+                </button>
+                <button
+                  onClick={() => record(tank.stationId, tank.id, "midi")}
+                  className="rounded-xl bg-primary px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
+                >
+                  Midi
+                </button>
+                <button
+                  onClick={() => record(tank.stationId, tank.id, "minuit")}
+                  className="rounded-xl bg-blue-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
+                >
+                  Minuit
+                </button>
+              </div>
             </div>
-          </section>
-        ))}
-        <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Quand</th>
-                <th className="px-4 py-3">Créneau</th>
-                <th className="px-4 py-3">Cuve</th>
-                <th className="px-4 py-3">mm</th>
-                <th className="px-4 py-3">Litres</th>
-                <th className="px-4 py-3">Agent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gauges
-                .filter((g) => ids.includes(g.stationId))
-                .map((g) => (
-                  <tr key={g.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2">{when(g.at)}</td>
-                    <td className="px-4 py-2 uppercase">{g.slot}</td>
-                    <td className="px-4 py-2">{tanks.find((t) => t.id === g.tankId)?.name}</td>
-                    <td className="px-4 py-2 font-mono">{mm(g.mm)}</td>
-                    <td className="px-4 py-2 font-mono">{liters(g.liters)}</td>
-                    <td className="px-4 py-2">{users.find((u) => u.id === g.userId)?.name}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </IdentifyGate>
+          );
+        })}
+      </div>
     </div>
+    </IdentifyGate>
   );
 }

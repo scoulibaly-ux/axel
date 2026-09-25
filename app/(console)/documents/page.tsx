@@ -5,7 +5,21 @@ import { useApp } from "@/lib/store";
 
 export default function DocumentsPage() {
   const missions = useApp((s) => s.missions);
-  const ids = useApp((s) => s.visibleStationIds());
+  const ids = useApp((s) => {
+    const u = s.users.find((user) => user.id === s.currentUserId);
+    if (!u) return [];
+    if (u.role === "proprietaire" || u.role === "adjoint") {
+      return s.stations.map((st) => st.id);
+    }
+    if (u.stationId) return [u.stationId];
+    if (u.role === "chauffeur") {
+      return s.missions.filter((m) => {
+        const d = s.drivers.find((x) => x.id === m.driverId);
+        return d?.truckId === u.truckId;
+      }).map((m) => m.stationId);
+    }
+    return [];
+  });
   const docs = missions
     .filter((m) => ids.includes(m.stationId))
     .flatMap((m) => m.documents.map((d) => ({ ...d, ref: m.reference, missionId: m.id })));

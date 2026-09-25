@@ -39,7 +39,7 @@ export const useApp = create<
     resetDemo: () => void;
     identify: (pin: string) => { ok: boolean; user?: User };
     requireIdentify: (minutes?: number) => boolean;
-    visibleStationIds: () => string[];
+
     currentUser: () => User | undefined;
     can: (action: Action) => boolean;
     createMission: (input: {
@@ -90,16 +90,17 @@ export const useApp = create<
       },
 
       visibleStationIds: () => {
-        const u = get().currentUser();
+        const s = get();
+        const u = s.users.find((user) => user.id === s.currentUserId);
         if (!u) return [];
         if (u.role === "proprietaire" || u.role === "adjoint") {
-          return get().stations.map((s) => s.id);
+          return s.stations.map((st) => st.id);
         }
         if (u.stationId) return [u.stationId];
         if (u.role === "chauffeur") {
-          return get()
+          return s
             .missions.filter((m) => {
-              const d = get().drivers.find((x) => x.id === m.driverId);
+              const d = s.drivers.find((x) => x.id === m.driverId);
               return d?.truckId === u.truckId;
             })
             .map((m) => m.stationId);

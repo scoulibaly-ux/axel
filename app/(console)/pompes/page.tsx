@@ -1,87 +1,90 @@
 "use client";
 
+import { useMemo } from "react";
 import { IdentifyGate } from "@/components/IdentifyGate";
 import { productLabel, when } from "@/lib/format";
 import { useApp } from "@/lib/store";
 
 export default function PumpsPage() {
-  const ids = useApp((s) => s.visibleStationIds());
-  const stations = useApp((s) => s.stations.filter((s) => ids.includes(s.id)));
-  const pumps = useApp((s) => s.pumps);
-  const readings = useApp((s) => s.pumpReadings);
+  const currentUserId = useApp((s) => s.currentUserId);
   const users = useApp((s) => s.users);
-  const recordPump = useApp((s) => s.recordPump);
-  const can = useApp((s) => s.can("pumps"));
+  const stations = useApp((s) => s.stations);
+  const missions = useApp((s) => s.missions);
+  const drivers = useApp((s) => s.drivers);
+  const pumps = useApp((s) => s.pumps);
+  const tanks = useApp((s) => s.tanks);
+  const readings = useApp((s) => s.pumpReadings);
+  const record = useApp((s) => s.recordPump);
+  
+  const ids = useMemo(() => {
+    const u = users.find((user) => user.id === currentUserId);
+    if (!u) return [];
+    if (u.role === "proprietaire" || u.role === "adjoint") {
+      return stations.map((st) => st.id);
+    }
+    if (u.stationId) return [u.stationId];
+    if (u.role === "chauffeur") {
+      return missions.filter((m) => {
+        const d = drivers.find((x) => x.id === m.driverId);
+        return d?.truckId === u.truckId;
+      }).map((m) => m.stationId);
+    }
+    return [];
+  }, [currentUserId, users, stations, missions, drivers]);
 
-  if (!can) return <p>Accès pompiste / superviseur.</p>;
+  const list = pumps.filter((p) => ids.includes(p.stationId));
 
   return (
+    <IdentifyGate place="un relevé d’index">
     <div className="space-y-6">
       <div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Relevés journaliers</p>
-        <h1 className="text-3xl font-black uppercase tracking-tight text-secondary">Index pompes</h1>
+        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Index pompes station</p>
+        <h1 className="text-3xl font-black uppercase tracking-tight text-secondary">
+          Index pompes
+        </h1>
       </div>
-      <IdentifyGate place="un relevé d’index">
-        {stations.map((st) => (
-          <section key={st.id} className="rounded-3xl border border-slate-100 bg-white p-5">
-            <h2 className="text-sm font-black uppercase tracking-widest text-secondary">{st.name}</h2>
-            <div className="mt-4 divide-y divide-slate-100">
-              {pumps
-                .filter((p) => p.stationId === st.id)
-                .map((p) => (
-                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <div>
-                      <p className="font-black uppercase">{p.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {productLabel[p.product]} · index {p.index.toLocaleString("fr-FR")}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => recordPump(st.id, p.id, "ouverture")}
-                        className="rounded-xl bg-blue-900 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
-                      >
-                        Ouverture
-                      </button>
-                      <button
-                        onClick={() => recordPump(st.id, p.id, "cloture")}
-                        className="rounded-xl bg-primary px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
-                      >
-                        Clôture
-                      </button>
-                    </div>
-                  </div>
-                ))}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {list.map((pump) => {
+          const tank = tanks.find((t) => t.id === pump.tankId);
+          const st = stations.find((s) => s.id === pump.stationId);
+          const last = readings
+            .filter((r) => r.pumpId === pump.id)
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
+          return (
+            <div key={pump.id} className="overflow-hidden rounded-3xl border border-slate-100 bg-white p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">{st?.name}</p>
+              <h3 className="text-2xl font-black text-secondary">{pump.name}</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {tank && productLabel[tank.product]} • {pump.index.toLocaleString()} L
+              </p>
+
+              {last && (
+                <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs">
+                  <p className="font-semibold text-slate-700">Dernier relevé {last.slot}</p>
+                  <p className="text-slate-500">{when(last.at)} • {last.index.toLocaleString()} L</p>
+                </div>
+              )}
+
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => record(pump.stationId, pump.id, "ouverture")}
+                  className="flex-1 rounded-xl bg-blue-900 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white"
+                >
+                  Ouverture
+                </button>
+                <button
+                  onClick={() => record(pump.stationId, pump.id, "cloture")}
+                  className="flex-1 rounded-xl bg-primary px-4 py-2 text-xs font-bold uppercase tracking-widest text-white"
+                >
+                  Clôture
+                </button>
+              </div>
             </div>
-          </section>
-        ))}
-        <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Quand</th>
-                <th className="px-4 py-3">Pompe</th>
-                <th className="px-4 py-3">Créneau</th>
-                <th className="px-4 py-3">Index</th>
-                <th className="px-4 py-3">Agent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {readings
-                .filter((r) => ids.includes(r.stationId))
-                .map((r) => (
-                  <tr key={r.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2">{when(r.at)}</td>
-                    <td className="px-4 py-2">{pumps.find((p) => p.id === r.pumpId)?.name}</td>
-                    <td className="px-4 py-2 uppercase">{r.slot}</td>
-                    <td className="px-4 py-2 font-mono">{r.index.toLocaleString("fr-FR")}</td>
-                    <td className="px-4 py-2">{users.find((u) => u.id === r.userId)?.name}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </IdentifyGate>
+          );
+        })}
+      </div>
     </div>
+    </IdentifyGate>
   );
 }

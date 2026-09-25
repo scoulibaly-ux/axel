@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { StatusBadge } from "@/components/Badges";
 import { liters } from "@/lib/format";
 import { useApp } from "@/lib/store";
@@ -11,7 +11,25 @@ export default function MissionsPage() {
   const stations = useApp((s) => s.stations);
   const trucks = useApp((s) => s.trucks);
   const drivers = useApp((s) => s.drivers);
-  const ids = useApp((s) => s.visibleStationIds());
+  const currentUserId = useApp((s) => s.currentUserId);
+  const users = useApp((s) => s.users);
+  
+  const ids = useMemo(() => {
+    const u = users.find((user) => user.id === currentUserId);
+    if (!u) return [];
+    if (u.role === "proprietaire" || u.role === "adjoint") {
+      return stations.map((st) => st.id);
+    }
+    if (u.stationId) return [u.stationId];
+    if (u.role === "chauffeur") {
+      return missions.filter((m) => {
+        const d = drivers.find((x) => x.id === m.driverId);
+        return d?.truckId === u.truckId;
+      }).map((m) => m.stationId);
+    }
+    return [];
+  }, [currentUserId, users, stations, missions, drivers]);
+  
   const canCreate = useApp((s) => s.can("createMission"));
   const createMission = useApp((s) => s.createMission);
   const [open, setOpen] = useState(false);

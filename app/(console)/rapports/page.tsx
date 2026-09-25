@@ -5,7 +5,21 @@ import { liters } from "@/lib/format";
 import { useApp } from "@/lib/store";
 
 export default function ReportsPage() {
-  const ids = useApp((s) => s.visibleStationIds());
+  const ids = useApp((s) => {
+    const u = s.users.find((user) => user.id === s.currentUserId);
+    if (!u) return [];
+    if (u.role === "proprietaire" || u.role === "adjoint") {
+      return s.stations.map((st) => st.id);
+    }
+    if (u.stationId) return [u.stationId];
+    if (u.role === "chauffeur") {
+      return s.missions.filter((m) => {
+        const d = s.drivers.find((x) => x.id === m.driverId);
+        return d?.truckId === u.truckId;
+      }).map((m) => m.stationId);
+    }
+    return [];
+  });
   const stations = useApp((s) => s.stations.filter((s) => ids.includes(s.id)));
   const tanks = useApp((s) => s.tanks);
   const missions = useApp((s) => s.missions.filter((m) => ids.includes(m.stationId)));
