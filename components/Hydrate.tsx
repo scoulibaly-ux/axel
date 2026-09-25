@@ -1,13 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { pullRemoteState, startNeonSync } from "@/lib/neon-sync";
 import { useApp } from "@/lib/store";
 
 export function Hydrate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const result = useApp.persist.rehydrate();
-    Promise.resolve(result).then(() => setReady(true));
+    Promise.resolve(result)
+      .then(() => pullRemoteState())
+      .catch(() => undefined)
+      .finally(() => {
+        startNeonSync();
+        setReady(true);
+      });
   }, []);
   if (!ready) {
     return (

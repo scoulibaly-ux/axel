@@ -6,6 +6,7 @@ import { AlertTriangle, Fuel, MapPinned, Warehouse } from "lucide-react";
 import { KpiCard } from "@/components/KpiCard";
 import { StatusBadge } from "@/components/Badges";
 import { TankViz } from "@/components/TankViz";
+import { DbStatus } from "@/components/DbStatus";
 import { liters } from "@/lib/format";
 import { useApp } from "@/lib/store";
 
@@ -54,6 +55,7 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-black uppercase tracking-tight text-secondary">
           Tableau de bord
         </h1>
+        <DbStatus />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

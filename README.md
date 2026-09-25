@@ -36,4 +36,6 @@ Données mock en `localStorage` (`sc-profuel-proto`). Bouton **Reset** pour reve
 
 ## Stack
 
-Next.js · TypeScript · Tailwind v4 · Zustand · Leaflet · Recharts · Lucide
+Next.js · TypeScript · Tailwind v4 · Zustand · Leaflet · Recharts · Lucide · Neon Postgres (Vercel)
+
+La base Vercel Marketplace **neon-gray-lever** stocke le snapshot métier (`app_snapshots`). Santé : `GET /api/health/db`.
